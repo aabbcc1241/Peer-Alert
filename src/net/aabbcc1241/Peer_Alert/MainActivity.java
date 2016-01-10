@@ -1,4 +1,4 @@
-package com.example.Play_Safe;
+package net.aabbcc1241.Peer_Alert;
 
 import android.app.Activity;
 import android.content.Context;
@@ -6,17 +6,20 @@ import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
 import android.os.Bundle;
 import android.util.Log;
+import com.example.Peer_Alert.R;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 
-public class MyActivity extends Activity {
-    public static final String SERVICE_NAME = "Play Safe Service";
+public class MainActivity extends Activity {
+    public static final String SERVICE_NAME = "Peer Alert Service";
     public static final int DEFAULT_PORT = 8123;
     public static final String SERVICE_TYPE = "_http._tcp";
-    String serviceName;
+    String mServiceName;
     boolean isServiceRegistered = false;
-    private NsdManager nsdManager;
+    NsdServiceInfo mServiceInfo;
+    private NsdManager mNsdManager;
 
     /**
      * Called when the activity is first created.
@@ -33,13 +36,13 @@ public class MyActivity extends Activity {
         serviceInfo.setServiceType(SERVICE_TYPE);
         serviceInfo.setPort(port);
 
-        nsdManager = (NsdManager) getApplicationContext().getSystemService(Context.NSD_SERVICE);
+        mNsdManager = (NsdManager) getApplicationContext().getSystemService(Context.NSD_SERVICE);
 
         ServiceRegistrationListener registrationListener = new ServiceRegistrationListener();
-        nsdManager.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, registrationListener);
+        mNsdManager.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, registrationListener);
 
         ServiceDiscoveryListener discoveryListener = new ServiceDiscoveryListener();
-        nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener);
+        mNsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener);
 
     }
 
@@ -67,7 +70,7 @@ public class MyActivity extends Activity {
 
         @Override
         public void onServiceRegistered(NsdServiceInfo serviceInfo) {
-            serviceName = serviceInfo.getServiceName();
+            mServiceName = serviceInfo.getServiceName();
             isServiceRegistered = true;
         }
 
@@ -110,7 +113,7 @@ public class MyActivity extends Activity {
                     Log.d(SERVICE_NAME, "Same machine : " + serviceName);
                 } else if (serviceName.contains(SERVICE_NAME)) {
                     ServiceResolveListener resolveListener = new ServiceResolveListener();
-                    nsdManager.resolveService(serviceInfo, resolveListener);
+                    mNsdManager.resolveService(serviceInfo, resolveListener);
                 }
             }
         }
@@ -130,6 +133,13 @@ public class MyActivity extends Activity {
         @Override
         public void onServiceResolved(NsdServiceInfo serviceInfo) {
             Log.d(SERVICE_NAME, "resolved service :\n" + serviceInfo);
+            if (serviceInfo.getServiceName().equals(mServiceName)) {
+                Log.d(SERVICE_NAME, "Same IP.");
+                return;
+            }
+            mServiceInfo = serviceInfo;
+            int port = mServiceInfo.getPort();
+            InetAddress host = mServiceInfo.getHost();
             //TODO
         }
     }
