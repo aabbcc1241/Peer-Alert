@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Play Safe</string>
+    <string name="send_alert">Send Alert</string>
+    <string name="confirm">Confirm</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="safe">#80ff80</color>
+    <color name="danger">#ff8080</color>
+    <color name="disconnect">#ffff80</color>
+</resources>
