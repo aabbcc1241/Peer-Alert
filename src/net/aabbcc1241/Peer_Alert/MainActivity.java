@@ -10,7 +10,6 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
-import com.example.Peer_Alert.R;
 import net.aabbcc1241.Peer_Alert.utils.ThreadUtils;
 
 import java.io.IOException;
@@ -31,6 +30,7 @@ public class MainActivity extends Activity {
     NsdHelper mNsdHelper;
     ConnectionHelper mConnectionHelper = new ConnectionHelper();
     UiHelper mUiHelper;
+    static final boolean AUTO_DISCOVER = false;
 
     /**
      * Called when the activity is first created.
@@ -53,7 +53,7 @@ public class MainActivity extends Activity {
                 btnSearchPeer.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        showToast(R.string.searching_peer);
+                        startDiscover();
                     }
                 });
             }
@@ -121,6 +121,9 @@ public class MainActivity extends Activity {
 
         /* init status */
         mUiHelper.setMode(Status.offline);
+
+        /* init services */
+        mNsdHelper = new NsdHelper();
     }
 
     @Override
@@ -131,21 +134,26 @@ public class MainActivity extends Activity {
         super.onPause();
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        if (mNsdHelper != null) {
-            //TODO
+    /**
+     * this method should not cause issue when called more than once continuously
+     * */
+    void startDiscover() {
+        if (!mConnectionHelper.hasServer)
             try {
-                if (!mConnectionHelper.hasServer)
-                    mConnectionHelper.initServer();
-                mNsdHelper.registerService(mConnectionHelper.mServiceServerSocket.getLocalPort());
-                mNsdHelper.discoverServices();
+                mConnectionHelper.initServer();
             } catch (IOException e) {
-                Log.e(SERVICE_NAME, "Failed to server socket!");
+                Log.e(SERVICE_NAME, "Failed to start server socket");
                 e.printStackTrace();
                 mUiHelper.showText(R.string.network_failure);
             }
+        mNsdHelper.init();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (AUTO_DISCOVER) {
+            startDiscover();
         }
     }
 
@@ -270,16 +278,28 @@ public class MainActivity extends Activity {
 
 
     class NsdHelper {
-        final NsdManager mNsdManager = (NsdManager) getApplicationContext().getSystemService(Context.NSD_SERVICE);
+        final NsdManager mNsdManager = (NsdManager) mMainActivity.getSystemService(Context.NSD_SERVICE);
         final ServiceRegistrationListener registrationListener = new ServiceRegistrationListener();
         final ServiceDiscoveryListener discoveryListener = new ServiceDiscoveryListener();
+        boolean hasInit = false;
 
-        public void tearDown() {
+        public synchronized void init() {
+            if (hasInit)
+                return;
+            hasInit = true;
+            mNsdHelper.registerService(mConnectionHelper.mServiceServerSocket.getLocalPort());
+            mNsdHelper.discoverServices();
+        }
+
+        public synchronized void tearDown() {
+            if (!hasInit)
+                return;
+            hasInit = false;
             mNsdManager.unregisterService(registrationListener);
             mNsdManager.stopServiceDiscovery(discoveryListener);
         }
 
-        public void registerService(int port) {
+        private void registerService(int port) {
             NsdServiceInfo serviceInfo = new NsdServiceInfo();
             serviceInfo.setServiceName(SERVICE_NAME);
             serviceInfo.setServiceType(SERVICE_TYPE);
@@ -288,11 +308,11 @@ public class MainActivity extends Activity {
             mNsdManager.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, registrationListener);
         }
 
-        public void discoverServices() {
+        private void discoverServices() {
             mNsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener);
         }
 
-        public void resolveService(NsdServiceInfo serviceInfo, NsdManager.ResolveListener resolveListener) {
+        private void resolveService(NsdServiceInfo serviceInfo, NsdManager.ResolveListener resolveListener) {
             mNsdManager.resolveService(serviceInfo, resolveListener);
         }
     }
