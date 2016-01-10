@@ -12,7 +12,7 @@
             android:layout_centerInParent="true"
     >
         <TextView
-                android:id="@+id/tvMsg"
+                android:id="@+id/tvStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_centerHorizontal="true"
@@ -21,11 +21,22 @@
                 android:text="@string/placeholder"
                 android:padding="@dimen/content_padding"
         />
+        <TextView
+                android:id="@+id/tvMessage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerHorizontal="true"
+                android:textAppearance="?android:textAppearanceMedium"
+                android:text="@string/placeholder"
+                android:padding="@dimen/content_padding"
+                android:layout_below="@id/tvStatus"
+        />
         <!-- to place the buttons -->
         <RelativeLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_below="@id/tvMsg"
+                android:layout_below="@id/tvMessage"
+                android:layout_centerHorizontal="true"
                 android:layout_marginTop="@dimen/content_margin"
         >
             <Button
@@ -57,6 +68,14 @@
                     android:text="@string/search_peer"
             />
         </RelativeLayout>
+        <ListView
+                android:id="@+id/lvPeer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerHorizontal="true"
+        >
+
+        </ListView>
     </RelativeLayout>
 
 

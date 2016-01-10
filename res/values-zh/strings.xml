@@ -9,4 +9,7 @@
     <string name="search_peer">搜索同伴</string>
     <string name="offline">當前離線</string>
     <string name="searching_peer">現在搜索同伴</string>
+    <string name="sent_alert">已發送警報</string>
+    <string name="received_alert">收到警報</string>
+    <string name="online">在線</string>
 </resources>

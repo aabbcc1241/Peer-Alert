@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 import net.aabbcc1241.Peer_Alert.utils.ThreadUtils;
@@ -23,6 +24,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class MainActivity extends Activity {
     public static final String SERVICE_NAME = "Peer Alert Service";
     public static final String SERVICE_TYPE = "_http._tcp.";
+    static final boolean AUTO_DISCOVER = false;
     MainActivity mMainActivity = this;
     String mServiceName;
     boolean isServiceRegistered = false;
@@ -30,7 +32,6 @@ public class MainActivity extends Activity {
     NsdHelper mNsdHelper;
     ConnectionHelper mConnectionHelper = new ConnectionHelper();
     UiHelper mUiHelper;
-    static final boolean AUTO_DISCOVER = false;
 
     /**
      * Called when the activity is first created.
@@ -42,14 +43,19 @@ public class MainActivity extends Activity {
 
         /* init UI */
         mUiHelper = new UiHelper() {
-            TextView tvMsg = (TextView) findViewById(R.id.tvMsg);
+            TextView tvStatus = (TextView) findViewById(R.id.tvStatus);
+            TextView tvMessage = (TextView) findViewById(R.id.tvMessage);
             Button btnSendAlert = (Button) findViewById(R.id.btnSendAlert);
             Button btnCancelAlert = (Button) findViewById(R.id.btnCancelAlert);
             Button btnConfirmAlert = (Button) findViewById(R.id.btnConfirmAlert);
             Button btnSearchPeer = (Button) findViewById(R.id.btnSearchPeer);
+            ListView lvPeer = (ListView) findViewById(R.id.lvPeer);
 
             {
-                showText(R.string.offline);
+                /* set content */
+                tvStatus.setText("");
+                tvMessage.setText("");
+                /* set listener */
                 btnSearchPeer.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
@@ -78,21 +84,21 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public void showText(int resId) {
+            public void showStatus(int resId) {
                 mMainActivity.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        tvMsg.setText(resId);
+                        tvStatus.setText(resId);
                     }
                 });
             }
 
             @Override
-            public void showText(String msg) {
+            public void showStatus(String msg) {
                 mMainActivity.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        tvMsg.setText(msg);
+                        tvStatus.setText(msg);
                     }
                 });
             }
@@ -115,6 +121,22 @@ public class MainActivity extends Activity {
                         setVisible(btnCancelAlert, LocalStatus.sent.equals(status));
                         setVisible(btnConfirmAlert, LocalStatus.received.equals(status));
                         setVisible(btnSearchPeer, LocalStatus.offline.equals(status));
+                        switch (status) {
+                            case offline:
+                                tvMessage.setText(R.string.offline);
+                                break;
+                            case idle:
+                                tvMessage.setText(R.string.online);
+                                break;
+                            case sent:
+                                tvMessage.setText(R.string.sent_alert);
+                                break;
+                            case received:
+                                tvMessage.setText(R.string.received_alert);
+                                break;
+                            default:
+                                Log.e(SERVICE_NAME, "Unsupported status");
+                        }
                     }
                 });
             }
@@ -145,7 +167,7 @@ public class MainActivity extends Activity {
             } catch (IOException e) {
                 Log.e(SERVICE_NAME, "Failed to start server socket");
                 e.printStackTrace();
-                mUiHelper.showText(R.string.network_failure);
+                mUiHelper.showStatus(R.string.network_failure);
             }
         mNsdHelper.init();
     }
@@ -165,12 +187,11 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    enum LocalStatus {received, sent, idle, offline}
 
     interface UiHelper {
-        void showText(int resId);
+        void showStatus(int resId);
 
-        void showText(String msg);
+        void showStatus(String msg);
 
         void setMode(LocalStatus status);
 
@@ -184,8 +205,21 @@ public class MainActivity extends Activity {
     class ConnectionHelper {
         ServiceClientSocket mServiceClientSocket;
         ServiceServerSocket mServiceServerSocket;
+        @Deprecated
         boolean hasServer = false;
+        @Deprecated
         boolean hasClient = false;
+        private ConcurrentLinkedQueue<ClientConnection> clientConnections = new ConcurrentLinkedQueue<>();
+
+        void onAlertMessageReceived(ClientConnection sender, PeerAlertMessage message) {
+            //TODO
+        }
+
+        void sendAlertMessage(PeerAlertMessage message) {
+            for (ClientConnection clientConnection : clientConnections) {
+                clientConnection.send(message);
+            }
+        }
 
         void initServer() throws IOException {
             if (hasServer)
@@ -196,11 +230,10 @@ public class MainActivity extends Activity {
             mUiHelper.showToast("Waiting peer");
         }
 
-        void initClient(InetAddress host, int remotePort) {
+        void initClient(InetAddress host, int remotePort) throws IOException {
             if (hasClient)
                 return;
-            mServiceClientSocket = new ServiceClientSocket();
-            mServiceClientSocket.initSocket(host, remotePort);
+            mServiceClientSocket = new ServiceClientSocket(host, remotePort);
             hasClient = true;
             mUiHelper.showToast("Connected peer " + host + " (" + remotePort + ")");
             mUiHelper.setMode(LocalStatus.idle);
@@ -211,6 +244,74 @@ public class MainActivity extends Activity {
                 mServiceServerSocket.tearDown();
             if (hasClient)
                 mServiceClientSocket.tearDown();
+        }
+
+        class ClientConnection {
+            private final Socket clientSocket;
+            private final ThreadUtils.LoopWorker inputWorker;
+            private final ObjectInputStream objectInputStream;
+            private final ObjectOutputStream objectOutputStream;
+
+            ClientConnection(Socket clientSocket) throws IOException {
+                this.clientSocket = clientSocket;
+                objectInputStream = new ObjectInputStream(clientSocket.getInputStream());
+                objectOutputStream = new ObjectOutputStream(clientSocket.getOutputStream());
+                /* fork to handle input */
+                inputWorker = new ThreadUtils.LoopWorker(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            PeerAlertMessage message = (PeerAlertMessage) objectInputStream.readObject();
+                            onReceived(message);
+                            return;
+                        } catch (ClassNotFoundException e) {
+                            Log.e(SERVICE_NAME, "Failed to parse message into PeerAlertMessage :\n" + e);
+                            e.printStackTrace();
+                        } catch (IOException e) {
+                            Log.e(SERVICE_NAME, "Failed to read from peer :\n" + e);
+                            e.printStackTrace();
+                        }
+                        mUiHelper.showToast("Failed to handle message");
+                    }
+                });
+                inputWorker.start();
+            }
+
+            public void tearDown() {
+                try {
+                    objectInputStream.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                try {
+                    objectOutputStream.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                try {
+                    clientSocket.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            public void send(PeerAlertMessage message) {
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            objectOutputStream.writeObject(message);
+                        } catch (IOException e) {
+                            Log.e(SERVICE_NAME, "Failed to send message!\nMessage : " + message + "\nIOException : " + e);
+                            e.printStackTrace();
+                        }
+                    }
+                }).start();
+            }
+
+            private void onReceived(PeerAlertMessage message) {
+                onAlertMessageReceived(this, message);
+            }
         }
 
         class ServiceServerSocket {
@@ -233,33 +334,14 @@ public class MainActivity extends Activity {
                 hasServer = true;
             }
 
+            /* this runnable will be called repeatably */
             class ServiceRunnable implements Runnable {
                 @Override
                 public void run() {
                     try {
                         Socket clientSocket = serverSocket.accept();
-                        ObjectInputStream is = new ObjectInputStream(clientSocket.getInputStream());
-                        ObjectOutputStream os = new ObjectOutputStream(clientSocket.getOutputStream());
-                        /* fork to handle input */
-                        ThreadUtils.LoopWorker inputWorker = new ThreadUtils.LoopWorker(new Runnable() {
-                            @Override
-                            public void run() {
-                                try {
-                                    PeerAlertMessage message = (PeerAlertMessage) is.readObject();
-                                    //TODO
-                                    return;
-                                } catch (ClassNotFoundException e) {
-                                    Log.e(SERVICE_NAME, "Failed to parse message into PeerAlertMessage :\n" + e);
-                                    e.printStackTrace();
-                                } catch (IOException e) {
-                                    Log.e(SERVICE_NAME, "Failed to read from peer :\n" + e);
-                                    e.printStackTrace();
-                                }
-                                mUiHelper.showToast("Failed to handle message");
-                            }
-                        });
-                        clientWorkers.add(inputWorker);
-                        inputWorker.start();
+                        ClientConnection clientConnection = new ClientConnection(clientSocket);
+                        clientConnections.add(clientConnection);
                     } catch (IOException e) {
                         mUiHelper.showToast("Failed to handle incoming peer");
                         e.printStackTrace();
@@ -269,12 +351,14 @@ public class MainActivity extends Activity {
         }
 
         class ServiceClientSocket {
-            void tearDown() {
+            public ServiceClientSocket(InetAddress host, int remotePort) throws IOException {
+                Socket clientSocket = new Socket(host, remotePort);
+                ClientConnection clientConnection = new ClientConnection(clientSocket);
+                clientConnections.add(clientConnection);
+                hasClient = true;
             }
 
-            public void initSocket(InetAddress host, int remotePort) {
-                //TODO
-                hasClient = true;
+            void tearDown() {
             }
         }
     }
@@ -406,7 +490,14 @@ public class MainActivity extends Activity {
                 return;
             }
             mServiceInfo = serviceInfo;
-            mConnectionHelper.initClient(mServiceInfo.getHost(), mServiceInfo.getPort());
+            try {
+                mConnectionHelper.initClient(mServiceInfo.getHost(), mServiceInfo.getPort());
+            } catch (IOException e) {
+                Log.e(SERVICE_NAME, "Failed to connect to service host");
+                e.printStackTrace();
+                mUiHelper.showToast(R.string.network_failure);
+            }
         }
     }
 }
+

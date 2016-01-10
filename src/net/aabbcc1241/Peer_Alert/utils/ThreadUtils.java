@@ -43,8 +43,12 @@ public class ThreadUtils {
         private final AtomicBoolean shouldStop = new AtomicBoolean(true);
         private boolean running = false;
 
-        public LoopWorker(Runnable runnable) {
-            this.runnable = runnable;
+        /**
+         * @param loopedRunnable this run will be called repeatably,
+         *                       until manually stopped by another thread
+         */
+        public LoopWorker(Runnable loopedRunnable) {
+            this.runnable = loopedRunnable;
         }
 
         public void stop() {

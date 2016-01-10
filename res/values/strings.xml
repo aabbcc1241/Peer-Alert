@@ -9,4 +9,7 @@
     <string name="search_peer">Search Peer</string>
     <string name="offline">Offline</string>
     <string name="searching_peer">Searching Peer</string>
+    <string name="sent_alert">Alert has been sent</string>
+    <string name="received_alert">Received Alert</string>
+    <string name="online">Online</string>
 </resources>
