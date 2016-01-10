@@ -17,13 +17,16 @@
                 android:layout_height="wrap_content"
                 android:layout_centerHorizontal="true"
                 android:layout_alignParentTop="true"
+                android:textAppearance="?android:textAppearanceMedium"
                 android:text="@string/placeholder"
+                android:padding="@dimen/content_padding"
         />
         <!-- to place the buttons -->
         <RelativeLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_below="@id/tvMsg"
+                android:layout_marginTop="@dimen/content_margin"
         >
             <Button
                     android:id="@+id/btnSendAlert"
@@ -46,6 +49,12 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/cancel_alert"
+            />
+            <Button
+                    android:id="@+id/btnSearchPeer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_peer"
             />
         </RelativeLayout>
     </RelativeLayout>

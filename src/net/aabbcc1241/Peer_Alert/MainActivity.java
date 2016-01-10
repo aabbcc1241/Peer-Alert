@@ -39,6 +39,11 @@ public class MainActivity extends Activity {
             Button btnSendAlert = (Button) findViewById(R.id.btnSendAlert);
             Button btnCancelAlert = (Button) findViewById(R.id.btnCancelAlert);
             Button btnConfirmAlert = (Button) findViewById(R.id.btnConfirmAlert);
+            Button btnSearchPeer = (Button) findViewById(R.id.btnSearchPeer);
+
+            {
+                showText(R.string.offline);
+            }
 
             @Override
             public void showText(int resId) {
@@ -59,8 +64,12 @@ public class MainActivity extends Activity {
                 setVisible(btnSendAlert, Status.idle.equals(status));
                 setVisible(btnCancelAlert, Status.sent.equals(status));
                 setVisible(btnConfirmAlert, Status.received.equals(status));
+                setVisible(btnSearchPeer, Status.offline.equals(status));
             }
         };
+
+        /* init status */
+        mUiHelper.setMode(Status.offline);
     }
 
     @Override
@@ -96,7 +105,7 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    enum Status {received, sent, idle}
+    enum Status {received, sent, idle, offline}
 
     interface UiHelper {
         void showText(int resId);

@@ -6,4 +6,6 @@
     <string name="cancel_alert">Cancel Alert</string>
     <string name="placeholder">placeholder</string>
     <string name="network_failure">Network Failure</string>
+    <string name="search_peer">Search Peer</string>
+    <string name="offline">Offline</string>
 </resources>

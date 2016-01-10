@@ -6,4 +6,6 @@
     <string name="placeholder">佔位符</string>
     <string name="confirm_alert">收到</string>
     <string name="network_failure">網絡故障</string>
+    <string name="search_peer">搜索同伴</string>
+    <string name="offline">當前離線</string>
 </resources>
