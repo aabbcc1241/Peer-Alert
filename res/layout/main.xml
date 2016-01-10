@@ -22,7 +22,7 @@
                 android:padding="@dimen/content_padding"
         />
         <TextView
-                android:id="@+id/tvMessage"
+                android:id="@+id/tvSubStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_centerHorizontal="true"
@@ -30,6 +30,16 @@
                 android:text="@string/placeholder"
                 android:padding="@dimen/content_padding"
                 android:layout_below="@id/tvStatus"
+        />
+        <TextView
+                android:id="@+id/tvMessage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerHorizontal="true"
+                android:textAppearance="?android:textAppearanceMedium"
+                android:text="@string/placeholder"
+                android:padding="@dimen/content_padding"
+                android:layout_below="@id/tvSubStatus"
         />
         <!-- to place the buttons -->
         <RelativeLayout

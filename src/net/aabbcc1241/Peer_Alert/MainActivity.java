@@ -11,6 +11,7 @@ import android.widget.Button;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
+import net.aabbcc1241.Peer_Alert.utils.Network;
 import net.aabbcc1241.Peer_Alert.utils.ThreadUtils;
 
 import java.io.IOException;
@@ -19,6 +20,7 @@ import java.io.ObjectOutputStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Vector;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class MainActivity extends Activity {
@@ -44,6 +46,7 @@ public class MainActivity extends Activity {
         /* init UI */
         mUiHelper = new UiHelper() {
             TextView tvStatus = (TextView) findViewById(R.id.tvStatus);
+            TextView tvSubStatus = (TextView) findViewById(R.id.tvSubStatus);
             TextView tvMessage = (TextView) findViewById(R.id.tvMessage);
             Button btnSendAlert = (Button) findViewById(R.id.btnSendAlert);
             Button btnCancelAlert = (Button) findViewById(R.id.btnCancelAlert);
@@ -54,6 +57,7 @@ public class MainActivity extends Activity {
             {
                 /* set content */
                 tvStatus.setText("");
+                tvSubStatus.setText("");
                 tvMessage.setText("");
                 /* set listener */
                 btnSearchPeer.setOnClickListener(new View.OnClickListener() {
@@ -63,6 +67,7 @@ public class MainActivity extends Activity {
                         startDiscover();
                     }
                 });
+                //TODO
             }
 
             public void showToast(int resId) {
@@ -99,6 +104,26 @@ public class MainActivity extends Activity {
                     @Override
                     public void run() {
                         tvStatus.setText(msg);
+                    }
+                });
+            }
+
+            @Override
+            public void showSubStatus(String msg) {
+                mMainActivity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        tvSubStatus.setText(msg);
+                    }
+                });
+            }
+
+            @Override
+            public void showMessage(String msg) {
+                mMainActivity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        tvMessage.setText(msg);
                     }
                 });
             }
@@ -161,15 +186,20 @@ public class MainActivity extends Activity {
      * this method should not cause issue when called more than once continuously
      */
     void startDiscover() {
-        if (!mConnectionHelper.hasServer)
-            try {
-                mConnectionHelper.initServer();
-            } catch (IOException e) {
-                Log.e(SERVICE_NAME, "Failed to start server socket");
-                e.printStackTrace();
-                mUiHelper.showStatus(R.string.network_failure);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                if (!mConnectionHelper.hasServer)
+                    try {
+                        mConnectionHelper.initServer();
+                    } catch (IOException e) {
+                        Log.e(SERVICE_NAME, "Failed to start server socket");
+                        e.printStackTrace();
+                        mUiHelper.showStatus(R.string.network_failure);
+                    }
+                mNsdHelper.init();
             }
-        mNsdHelper.init();
+        }).start();
     }
 
     @Override
@@ -192,6 +222,10 @@ public class MainActivity extends Activity {
         void showStatus(int resId);
 
         void showStatus(String msg);
+
+        void showSubStatus(String msg);
+
+        void showMessage(String msg);
 
         void setMode(LocalStatus status);
 
@@ -225,7 +259,6 @@ public class MainActivity extends Activity {
             if (hasServer)
                 return;
             mServiceServerSocket = new ServiceServerSocket();
-            mServiceServerSocket.initSocket();
             hasServer = true;
             mUiHelper.showToast("Waiting peer");
         }
@@ -239,11 +272,19 @@ public class MainActivity extends Activity {
             mUiHelper.setMode(LocalStatus.idle);
         }
 
-        void tearDown() {
+        synchronized void tearDown() {
             if (hasServer)
                 mServiceServerSocket.tearDown();
             if (hasClient)
                 mServiceClientSocket.tearDown();
+            Vector<ClientConnection> xs = new Vector<ClientConnection>();
+            for (ClientConnection clientConnection : clientConnections) {
+                clientConnection.tearDown();
+                xs.add(clientConnection);
+            }
+            for (ClientConnection x : xs) {
+                clientConnections.remove(x);
+            }
         }
 
         class ClientConnection {
@@ -327,10 +368,13 @@ public class MainActivity extends Activity {
             void tearDown() {
             }
 
-            public void initSocket() throws IOException {
+            public ServiceServerSocket() throws IOException {
                 serverSocket = new ServerSocket(0);
                 localPort = serverSocket.getLocalPort();
                 mLoopWorker.start();
+//                mUiHelper.showSubStatus("self : " + Network.getLocalIpWifi(mMainActivity) + " : " + localPort);
+//                mUiHelper.showSubStatus("self : " + serverSocket.getInetAddress().getHostAddress() + " : " + localPort);
+                mUiHelper.showSubStatus("self : " + Network.getLocalIpAddresses(true) + " : " + localPort);
                 hasServer = true;
             }
 
@@ -342,6 +386,7 @@ public class MainActivity extends Activity {
                         Socket clientSocket = serverSocket.accept();
                         ClientConnection clientConnection = new ClientConnection(clientSocket);
                         clientConnections.add(clientConnection);
+                        mUiHelper.setMode(LocalStatus.idle);
                     } catch (IOException e) {
                         mUiHelper.showToast("Failed to handle incoming peer");
                         e.printStackTrace();
@@ -431,7 +476,7 @@ public class MainActivity extends Activity {
     }
 
     class ServiceDiscoveryListener implements NsdManager.DiscoveryListener {
-        private final ServiceResolveListener resolveListener = new ServiceResolveListener();
+//        private final ServiceResolveListener resolveListener = new ServiceResolveListener();
 
         @Override
         public void onStartDiscoveryFailed(String serviceType, int errorCode) {
@@ -465,7 +510,7 @@ public class MainActivity extends Activity {
                     Log.d(SERVICE_NAME, "Same machine : " + serviceName);
                 } else if (serviceName.contains(SERVICE_NAME)) {
                     Log.d(SERVICE_NAME, "Not same machine : " + serviceName);
-                    mNsdHelper.resolveService(serviceInfo, resolveListener);
+                    mNsdHelper.resolveService(serviceInfo, new ServiceResolveListener());
                 }
             }
         }
@@ -492,8 +537,9 @@ public class MainActivity extends Activity {
             mServiceInfo = serviceInfo;
             try {
                 mConnectionHelper.initClient(mServiceInfo.getHost(), mServiceInfo.getPort());
+                mUiHelper.setMode(LocalStatus.idle);
             } catch (IOException e) {
-                Log.e(SERVICE_NAME, "Failed to connect to service host");
+                Log.e(SERVICE_NAME, "Failed to connect to service host\nserviceInfo : " + serviceInfo);
                 e.printStackTrace();
                 mUiHelper.showToast(R.string.network_failure);
             }
