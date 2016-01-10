@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">同伴警報</string>
-    <string name="confirm">確認</string>
     <string name="send_alert">發送警報</string>
+    <string name="cancel_alert">取消警報</string>
+    <string name="placeholder">佔位符</string>
+    <string name="confirm_alert">收到</string>
+    <string name="network_failure">網絡故障</string>
 </resources>

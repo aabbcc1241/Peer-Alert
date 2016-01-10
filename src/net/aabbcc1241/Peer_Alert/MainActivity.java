@@ -6,6 +6,9 @@ import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
+import android.widget.TextView;
 import com.example.Peer_Alert.R;
 
 import java.io.IOException;
@@ -14,12 +17,13 @@ import java.net.ServerSocket;
 
 public class MainActivity extends Activity {
     public static final String SERVICE_NAME = "Peer Alert Service";
-    public static final int DEFAULT_PORT = 8123;
     public static final String SERVICE_TYPE = "_http._tcp";
     String mServiceName;
     boolean isServiceRegistered = false;
     NsdServiceInfo mServiceInfo;
-    private NsdManager mNsdManager;
+    NsdHelper mNsdHelper;
+    ConnectionHelper mConnectionHelper = new ConnectionHelper();
+    UiHelper mUiHelper;
 
     /**
      * Called when the activity is first created.
@@ -28,31 +32,165 @@ public class MainActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
+
+        /* init UI */
+        mUiHelper = new UiHelper() {
+            TextView tvMsg = (TextView) findViewById(R.id.tvMsg);
+            Button btnSendAlert = (Button) findViewById(R.id.btnSendAlert);
+            Button btnCancelAlert = (Button) findViewById(R.id.btnCancelAlert);
+            Button btnConfirmAlert = (Button) findViewById(R.id.btnConfirmAlert);
+
+            @Override
+            public void showText(int resId) {
+                tvMsg.setText(resId);
+            }
+
+            @Override
+            public void showText(String msg) {
+                tvMsg.setText(msg);
+            }
+
+            void setVisible(View view, boolean isVisible) {
+                view.setVisibility(isVisible ? View.VISIBLE : View.GONE);
+            }
+
+            @Override
+            public void setMode(Status status) {
+                setVisible(btnSendAlert, Status.idle.equals(status));
+                setVisible(btnCancelAlert, Status.sent.equals(status));
+                setVisible(btnConfirmAlert, Status.received.equals(status));
+            }
+        };
     }
 
-    public void registerService(int port) {
-        NsdServiceInfo serviceInfo = new NsdServiceInfo();
-        serviceInfo.setServiceName(SERVICE_NAME);
-        serviceInfo.setServiceType(SERVICE_TYPE);
-        serviceInfo.setPort(port);
-
-        mNsdManager = (NsdManager) getApplicationContext().getSystemService(Context.NSD_SERVICE);
-
-        ServiceRegistrationListener registrationListener = new ServiceRegistrationListener();
-        mNsdManager.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, registrationListener);
-
-        ServiceDiscoveryListener discoveryListener = new ServiceDiscoveryListener();
-        mNsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener);
-
+    @Override
+    protected void onPause() {
+        if (mNsdHelper != null) {
+            mNsdHelper.tearDown();
+        }
+        super.onPause();
     }
 
-    static class ServiceSocket {
-        int localPort;
-        ServerSocket serverSocket;
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (mNsdHelper != null) {
+            //TODO
+            try {
+                if (!mConnectionHelper.hasServer)
+                    mConnectionHelper.initServer();
+                mNsdHelper.registerService(mConnectionHelper.mServiceServerSocket.getLocalPort());
+                mNsdHelper.discoverServices();
+            } catch (IOException e) {
+                Log.e(SERVICE_NAME, "Failed to server socket!");
+                e.printStackTrace();
+                mUiHelper.showText(R.string.network_failure);
+            }
+        }
+    }
 
-        public void initServiceSocket() throws IOException {
-            serverSocket = new ServerSocket(0);
-            localPort = serverSocket.getLocalPort();
+    @Override
+    protected void onDestroy() {
+        mNsdHelper.tearDown();
+        mConnectionHelper.tearDown();
+        super.onDestroy();
+    }
+
+    enum Status {received, sent, idle}
+
+    interface UiHelper {
+        void showText(int resId);
+
+        void showText(String msg);
+
+        void setMode(Status status);
+    }
+
+    class ConnectionHelper {
+        ServiceClientSocket mServiceClientSocket;
+        ServiceServerSocket mServiceServerSocket;
+        boolean hasServer = false;
+        boolean hasClient = false;
+
+        void initServer() throws IOException {
+            if (hasServer)
+                return;
+            mServiceServerSocket = new ServiceServerSocket();
+            mServiceServerSocket.initSocket();
+            hasServer = true;
+        }
+
+        void initClient(InetAddress host, int remotePort) {
+            if (hasClient)
+                return;
+            mServiceClientSocket = new ServiceClientSocket();
+            mServiceClientSocket.initSocket(host, remotePort);
+            hasClient = true;
+        }
+
+        void tearDown() {
+            if (hasServer)
+                mServiceServerSocket.tearDown();
+            if (hasClient)
+                mServiceClientSocket.tearDown();
+        }
+
+        class ServiceServerSocket {
+            protected InetAddress host;
+            ServerSocket serverSocket;
+            private int localPort;
+
+            public int getLocalPort() {
+                return localPort;
+            }
+
+            void tearDown() {
+            }
+
+            public void initSocket() throws IOException {
+                serverSocket = new ServerSocket(0);
+                localPort = serverSocket.getLocalPort();
+                hasServer = true;
+            }
+
+        }
+
+        class ServiceClientSocket {
+            void tearDown() {
+            }
+
+            public void initSocket(InetAddress host, int remotePort) {
+                hasClient = true;
+            }
+        }
+    }
+
+
+    class NsdHelper {
+        final NsdManager mNsdManager = (NsdManager) getApplicationContext().getSystemService(Context.NSD_SERVICE);
+        final ServiceRegistrationListener registrationListener = new ServiceRegistrationListener();
+        final ServiceDiscoveryListener discoveryListener = new ServiceDiscoveryListener();
+
+        public void tearDown() {
+            mNsdManager.unregisterService(registrationListener);
+            mNsdManager.stopServiceDiscovery(discoveryListener);
+        }
+
+        public void registerService(int port) {
+            NsdServiceInfo serviceInfo = new NsdServiceInfo();
+            serviceInfo.setServiceName(SERVICE_NAME);
+            serviceInfo.setServiceType(SERVICE_TYPE);
+            serviceInfo.setPort(port);
+
+            mNsdManager.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, registrationListener);
+        }
+
+        public void discoverServices() {
+            mNsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener);
+        }
+
+        public void resolveService(NsdServiceInfo serviceInfo, NsdManager.ResolveListener resolveListener) {
+            mNsdManager.resolveService(serviceInfo, resolveListener);
         }
     }
 
@@ -113,7 +251,7 @@ public class MainActivity extends Activity {
                     Log.d(SERVICE_NAME, "Same machine : " + serviceName);
                 } else if (serviceName.contains(SERVICE_NAME)) {
                     ServiceResolveListener resolveListener = new ServiceResolveListener();
-                    mNsdManager.resolveService(serviceInfo, resolveListener);
+                    mNsdHelper.resolveService(serviceInfo, resolveListener);
                 }
             }
         }
@@ -138,10 +276,9 @@ public class MainActivity extends Activity {
                 return;
             }
             mServiceInfo = serviceInfo;
-            int port = mServiceInfo.getPort();
-            InetAddress host = mServiceInfo.getHost();
-            //TODO
+            mConnectionHelper.initClient(mServiceInfo.getHost(), mServiceInfo.getPort());
         }
     }
+
 
 }

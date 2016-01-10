@@ -2,5 +2,8 @@
 <resources>
     <string name="app_name">Peer Alert</string>
     <string name="send_alert">Send Alert</string>
-    <string name="confirm">Confirm</string>
+    <string name="confirm_alert">Roger That</string>
+    <string name="cancel_alert">Cancel Alert</string>
+    <string name="placeholder">placeholder</string>
+    <string name="network_failure">Network Failure</string>
 </resources>
