@@ -43,6 +43,7 @@
         />
         <!-- to place the buttons -->
         <RelativeLayout
+                android:id="@+id/layout_buttons"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_below="@id/tvMessage"
@@ -83,6 +84,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_centerHorizontal="true"
+                android:layout_below="@id/layout_buttons"
         >
 
         </ListView>
