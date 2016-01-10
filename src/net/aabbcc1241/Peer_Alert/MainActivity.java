@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class MainActivity extends Activity {
     public static final String SERVICE_NAME = "Peer Alert Service";
-    public static final String SERVICE_TYPE = "_http._tcp";
+    public static final String SERVICE_TYPE = "_http._tcp.";
     MainActivity mMainActivity = this;
     String mServiceName;
     boolean isServiceRegistered = false;
@@ -53,6 +53,7 @@ public class MainActivity extends Activity {
                 btnSearchPeer.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
+                        showToast(R.string.searching_peer);
                         startDiscover();
                     }
                 });
@@ -136,7 +137,7 @@ public class MainActivity extends Activity {
 
     /**
      * this method should not cause issue when called more than once continuously
-     * */
+     */
     void startDiscover() {
         if (!mConnectionHelper.hasServer)
             try {
@@ -300,6 +301,7 @@ public class MainActivity extends Activity {
         }
 
         private void registerService(int port) {
+            Log.d(SERVICE_NAME, "Registering service on port : " + port);
             NsdServiceInfo serviceInfo = new NsdServiceInfo();
             serviceInfo.setServiceName(SERVICE_NAME);
             serviceInfo.setServiceType(SERVICE_TYPE);
@@ -313,6 +315,7 @@ public class MainActivity extends Activity {
         }
 
         private void resolveService(NsdServiceInfo serviceInfo, NsdManager.ResolveListener resolveListener) {
+            Log.d(SERVICE_NAME, "Trying to resolve service :\n" + serviceInfo);
             mNsdManager.resolveService(serviceInfo, resolveListener);
         }
     }
@@ -342,6 +345,8 @@ public class MainActivity extends Activity {
     }
 
     class ServiceDiscoveryListener implements NsdManager.DiscoveryListener {
+        private final ServiceResolveListener resolveListener = new ServiceResolveListener();
+
         @Override
         public void onStartDiscoveryFailed(String serviceType, int errorCode) {
             Log.e(SERVICE_NAME, "failed to start discovery (" + errorCode + ") :\n" + serviceType);
@@ -370,10 +375,10 @@ public class MainActivity extends Activity {
                 Log.d(SERVICE_NAME, "Unknown Service Type : " + serviceType);
             } else {
                 String serviceName = serviceInfo.getServiceName();
-                if (serviceName.equals(serviceName)) {
+                if (serviceName.equals(mServiceName)) {
                     Log.d(SERVICE_NAME, "Same machine : " + serviceName);
                 } else if (serviceName.contains(SERVICE_NAME)) {
-                    ServiceResolveListener resolveListener = new ServiceResolveListener();
+                    Log.d(SERVICE_NAME, "Not same machine : " + serviceName);
                     mNsdHelper.resolveService(serviceInfo, resolveListener);
                 }
             }
