@@ -9,15 +9,22 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 import com.example.Peer_Alert.R;
+import net.aabbcc1241.Peer_Alert.utils.ThreadUtils;
 
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class MainActivity extends Activity {
     public static final String SERVICE_NAME = "Peer Alert Service";
     public static final String SERVICE_TYPE = "_http._tcp";
+    MainActivity mMainActivity = this;
     String mServiceName;
     boolean isServiceRegistered = false;
     NsdServiceInfo mServiceInfo;
@@ -43,28 +50,72 @@ public class MainActivity extends Activity {
 
             {
                 showText(R.string.offline);
+                btnSearchPeer.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        showToast(R.string.searching_peer);
+                    }
+                });
+            }
+
+            public void showToast(int resId) {
+                mMainActivity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(mMainActivity, resId, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+
+            public void showToast(String msg) {
+                mMainActivity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(mMainActivity, msg, Toast.LENGTH_SHORT).show();
+                    }
+                });
             }
 
             @Override
             public void showText(int resId) {
-                tvMsg.setText(resId);
+                mMainActivity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        tvMsg.setText(resId);
+                    }
+                });
             }
 
             @Override
             public void showText(String msg) {
-                tvMsg.setText(msg);
+                mMainActivity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        tvMsg.setText(msg);
+                    }
+                });
             }
 
             void setVisible(View view, boolean isVisible) {
-                view.setVisibility(isVisible ? View.VISIBLE : View.GONE);
+                mMainActivity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        view.setVisibility(isVisible ? View.VISIBLE : View.GONE);
+                    }
+                });
             }
 
             @Override
             public void setMode(Status status) {
-                setVisible(btnSendAlert, Status.idle.equals(status));
-                setVisible(btnCancelAlert, Status.sent.equals(status));
-                setVisible(btnConfirmAlert, Status.received.equals(status));
-                setVisible(btnSearchPeer, Status.offline.equals(status));
+                mMainActivity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        setVisible(btnSendAlert, Status.idle.equals(status));
+                        setVisible(btnCancelAlert, Status.sent.equals(status));
+                        setVisible(btnConfirmAlert, Status.received.equals(status));
+                        setVisible(btnSearchPeer, Status.offline.equals(status));
+                    }
+                });
             }
         };
 
@@ -113,6 +164,12 @@ public class MainActivity extends Activity {
         void showText(String msg);
 
         void setMode(Status status);
+
+        void showToast(int resId);
+
+        /*avoid making string directly for better language support */
+        @Deprecated
+        void showToast(String msg);
     }
 
     class ConnectionHelper {
@@ -127,6 +184,7 @@ public class MainActivity extends Activity {
             mServiceServerSocket = new ServiceServerSocket();
             mServiceServerSocket.initSocket();
             hasServer = true;
+            mUiHelper.showToast("Waiting peer");
         }
 
         void initClient(InetAddress host, int remotePort) {
@@ -135,6 +193,7 @@ public class MainActivity extends Activity {
             mServiceClientSocket = new ServiceClientSocket();
             mServiceClientSocket.initSocket(host, remotePort);
             hasClient = true;
+            mUiHelper.showToast("Connected peer " + host + " (" + remotePort + ")");
         }
 
         void tearDown() {
@@ -147,6 +206,8 @@ public class MainActivity extends Activity {
         class ServiceServerSocket {
             protected InetAddress host;
             ServerSocket serverSocket;
+            ThreadUtils.LoopWorker mLoopWorker = new ThreadUtils.LoopWorker(new ServiceRunnable());
+            ConcurrentLinkedQueue<ThreadUtils.LoopWorker> clientWorkers = new ConcurrentLinkedQueue();
             private int localPort;
 
             public int getLocalPort() {
@@ -159,9 +220,42 @@ public class MainActivity extends Activity {
             public void initSocket() throws IOException {
                 serverSocket = new ServerSocket(0);
                 localPort = serverSocket.getLocalPort();
+                mLoopWorker.start();
                 hasServer = true;
             }
 
+            class ServiceRunnable implements Runnable {
+                @Override
+                public void run() {
+                    try {
+                        Socket clientSocket = serverSocket.accept();
+                        ObjectInputStream is = new ObjectInputStream(clientSocket.getInputStream());
+                        ObjectOutputStream os = new ObjectOutputStream(clientSocket.getOutputStream());
+                        /* fork to handle input */
+                        ThreadUtils.LoopWorker inputWorker = new ThreadUtils.LoopWorker(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    PeerAlertMessage message = (PeerAlertMessage) is.readObject();
+                                    return;
+                                } catch (ClassNotFoundException e) {
+                                    Log.e(SERVICE_NAME, "Failed to parse message into PeerAlertMessage :\n" + e);
+                                    e.printStackTrace();
+                                } catch (IOException e) {
+                                    Log.e(SERVICE_NAME, "Failed to read from peer :\n" + e);
+                                    e.printStackTrace();
+                                }
+                                mUiHelper.showToast("Failed to handle message");
+                            }
+                        });
+                        clientWorkers.add(inputWorker);
+                        inputWorker.start();
+                    } catch (IOException e) {
+                        mUiHelper.showToast("Failed to handle incoming peer");
+                        e.printStackTrace();
+                    }
+                }
+            }
         }
 
         class ServiceClientSocket {
@@ -288,6 +382,4 @@ public class MainActivity extends Activity {
             mConnectionHelper.initClient(mServiceInfo.getHost(), mServiceInfo.getPort());
         }
     }
-
-
 }

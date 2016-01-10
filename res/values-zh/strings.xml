@@ -8,4 +8,5 @@
     <string name="network_failure">網絡故障</string>
     <string name="search_peer">搜索同伴</string>
     <string name="offline">當前離線</string>
+    <string name="searching_peer">現在搜索同伴</string>
 </resources>
