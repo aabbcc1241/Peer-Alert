@@ -270,6 +270,7 @@ public class MainActivity extends Activity {
             hasClient = true;
             mUiHelper.showToast("Connected peer " + host + " (" + remotePort + ")");
             mUiHelper.setMode(LocalStatus.idle);
+            //TODO add peer to list view
         }
 
         synchronized void tearDown() {
@@ -387,6 +388,7 @@ public class MainActivity extends Activity {
                         ClientConnection clientConnection = new ClientConnection(clientSocket);
                         clientConnections.add(clientConnection);
                         mUiHelper.setMode(LocalStatus.idle);
+                        //TODO add peer to list view
                     } catch (IOException e) {
                         mUiHelper.showToast("Failed to handle incoming peer");
                         e.printStackTrace();
@@ -537,7 +539,6 @@ public class MainActivity extends Activity {
             mServiceInfo = serviceInfo;
             try {
                 mConnectionHelper.initClient(mServiceInfo.getHost(), mServiceInfo.getPort());
-                mUiHelper.setMode(LocalStatus.idle);
             } catch (IOException e) {
                 Log.e(SERVICE_NAME, "Failed to connect to service host\nserviceInfo : " + serviceInfo);
                 e.printStackTrace();
