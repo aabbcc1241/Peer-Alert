@@ -107,21 +107,21 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public void setMode(Status status) {
+            public void setMode(LocalStatus status) {
                 mMainActivity.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        setVisible(btnSendAlert, Status.idle.equals(status));
-                        setVisible(btnCancelAlert, Status.sent.equals(status));
-                        setVisible(btnConfirmAlert, Status.received.equals(status));
-                        setVisible(btnSearchPeer, Status.offline.equals(status));
+                        setVisible(btnSendAlert, LocalStatus.idle.equals(status));
+                        setVisible(btnCancelAlert, LocalStatus.sent.equals(status));
+                        setVisible(btnConfirmAlert, LocalStatus.received.equals(status));
+                        setVisible(btnSearchPeer, LocalStatus.offline.equals(status));
                     }
                 });
             }
         };
 
         /* init status */
-        mUiHelper.setMode(Status.offline);
+        mUiHelper.setMode(LocalStatus.offline);
 
         /* init services */
         mNsdHelper = new NsdHelper();
@@ -165,14 +165,14 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    enum Status {received, sent, idle, offline}
+    enum LocalStatus {received, sent, idle, offline}
 
     interface UiHelper {
         void showText(int resId);
 
         void showText(String msg);
 
-        void setMode(Status status);
+        void setMode(LocalStatus status);
 
         void showToast(int resId);
 
@@ -203,6 +203,7 @@ public class MainActivity extends Activity {
             mServiceClientSocket.initSocket(host, remotePort);
             hasClient = true;
             mUiHelper.showToast("Connected peer " + host + " (" + remotePort + ")");
+            mUiHelper.setMode(LocalStatus.idle);
         }
 
         void tearDown() {
@@ -213,7 +214,6 @@ public class MainActivity extends Activity {
         }
 
         class ServiceServerSocket {
-            protected InetAddress host;
             ServerSocket serverSocket;
             ThreadUtils.LoopWorker mLoopWorker = new ThreadUtils.LoopWorker(new ServiceRunnable());
             ConcurrentLinkedQueue<ThreadUtils.LoopWorker> clientWorkers = new ConcurrentLinkedQueue();
@@ -246,6 +246,7 @@ public class MainActivity extends Activity {
                             public void run() {
                                 try {
                                     PeerAlertMessage message = (PeerAlertMessage) is.readObject();
+                                    //TODO
                                     return;
                                 } catch (ClassNotFoundException e) {
                                     Log.e(SERVICE_NAME, "Failed to parse message into PeerAlertMessage :\n" + e);
@@ -272,6 +273,7 @@ public class MainActivity extends Activity {
             }
 
             public void initSocket(InetAddress host, int remotePort) {
+                //TODO
                 hasClient = true;
             }
         }
